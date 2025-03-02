@@ -12,6 +12,11 @@ export const routes = [
 		path: '/file-slice',
 		name: 'FileSlice',
 		component: () => import('../views/FileSlice.vue')
+	},
+	{
+		path: '/throttle-and-debounce',
+		name: 'ThrottleAndDebounce',
+		component: () => import('../views/ThrottleAndDebounce.vue')
 	}
 ]
 const router = createRouter({
