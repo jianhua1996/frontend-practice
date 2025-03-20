@@ -24,34 +24,72 @@ export function createChunk(file, start, end) {
  * @param {{threadNum?: number}} options
  * @returns {Promise<Array<{name: string, size: number, start: number, end: number, data: Blob}>>}
  */
-export function cutFile(file, chunkSize = 1024 * 1024 * 2, options = {}) {
+export function cutFile(file, options = {}) {
 	return new Promise((resolve, reject) => {
-		let { threadNum = 4 } = options
-		const chunkCount = Math.ceil(file.size / chunkSize) // 文件大小除以块大小，向上取整，得到块数，也就是任务数
-		if (!threadNum || threadNum > navigator.hardwareConcurrency) {
-			threadNum = navigator.hardwareConcurrency // 总线程数
+		if (!file || !(file instanceof Blob)) {
+			return reject(new Error('Invalid file parameter'))
 		}
-		console.log(
-			`切割文件：${file.name}，总大小：${file.size}，块大小：${chunkSize}，线程数：${threadNum}，块数：${chunkCount}`
-		)
-		const chunkCountPerThread = Math.ceil(chunkCount / threadNum) // 总任务数除以线程数，向上取整，得到每个线程负责的任务数
-		const chunkTasks = [] // 任务列表
-		let dispatchedAll = false // 是否全部任务都已分配完毕
 
-		// 循环创建线程，每个线程负责切割自己负责任务数的块
+		let { chunkSize, threadNum, onProgress } = options
+		if (typeof chunkSize !== 'number') {
+			chunkSize = 1024 * 1024 // 默认块大小为 1MB
+		}
+		if (typeof threadNum !== 'number') {
+			threadNum = navigator.hardwareConcurrency || 4 // 总线程数
+		}
+		if (onProgress && typeof onProgress !== 'function') throw new Error('onProgress must be a function')
+
+		const chunkCount = Math.ceil(file.size / chunkSize) // 文件大小除以块大小，向上取整，得到块数，也就是任务数
+
+		onProgress?.({
+			status: 'cutStart',
+			data: {
+				name: file.name,
+				size: file.size,
+				chunkSize,
+				chunkCount,
+				threadNum
+			},
+			msg: `分片开始，文件名为${file.name}，文件大小为${file.size}，块大小为${chunkSize}，块数为${chunkCount}，线程数为${threadNum}`
+		})
+
+		const minTaskOfThread = Math.floor(chunkCount / threadNum) // 每个线程至少要执行的任务数
+		let restTaskOfThread = chunkCount % threadNum // 任务余数
+
+		const chunkTasks = [] // 任务列表
+		let currentStartTaskIndex = 0
+		let dispatchedAll = false
+
 		for (let i = 0; i < threadNum; i++) {
-			if (dispatchedAll) break // 如果分配完毕，则退出循环
-			const startTaskIndex = i * chunkCountPerThread // 当前线程负责的任务开始任务索引
-			let endTaskIndex = startTaskIndex + chunkCountPerThread // 当前线程负责的任务结束任务索引
+			if (dispatchedAll) break
+			let tasksPerThread = minTaskOfThread
+			if (restTaskOfThread > 0) {
+				tasksPerThread += 1
+				restTaskOfThread -= 1
+			}
+			const startTaskIndex = currentStartTaskIndex
+			let endTaskIndex = startTaskIndex + tasksPerThread
+			currentStartTaskIndex = endTaskIndex
+
 			if (endTaskIndex >= chunkCount) {
-				// 如果超出任务总数，则分配剩余任务给最后一个线程
 				endTaskIndex = chunkCount
 				dispatchedAll = true
 			}
 
 			const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
-			console.log(`线程${i}开始分配任务：${startTaskIndex}-${endTaskIndex}`)
 
+			onProgress?.({
+				status: 'threadStart',
+				data: {
+					threadIndex: i,
+					startTaskIndex,
+					endTaskIndex,
+					tasksPerThread
+				},
+				msg: `创建线程${i}，负责任务${startTaskIndex}到${endTaskIndex}`
+			})
+
+			// file, startTaskIndex, endTaskIndex, chunkSize
 			worker.postMessage({
 				file,
 				startTaskIndex,
@@ -60,15 +98,30 @@ export function cutFile(file, chunkSize = 1024 * 1024 * 2, options = {}) {
 			})
 
 			worker.onmessage = e => {
+				onProgress?.({
+					status: 'threadEnd',
+					data: {
+						threadIndex: i,
+						startTaskIndex,
+						endTaskIndex,
+						tasksPerThread
+					},
+					msg: `线程${i}完成，负责任务${startTaskIndex}到${endTaskIndex}`
+				})
+
 				for (let j = 0; j < e.data.length; j++) {
-					console.log(`线程${i}完成任务${startTaskIndex + j}`)
-					chunkTasks[startTaskIndex + j] = e.data[j] // 将切割好的块添加到任务列表中
+					chunkTasks[startTaskIndex + j] = e.data[j]
 				}
-				// 如果任务列表中所有任务都已完成，则返回结果
+
 				if (chunkTasks.length === chunkCount) {
 					resolve(chunkTasks)
 				}
-				// 当前线程完成任务，释放资源
+
+				worker.terminate()
+			}
+
+			worker.onerror = err => {
+				reject(new Error(`Worker error: ${err.message}`))
 				worker.terminate()
 			}
 		}

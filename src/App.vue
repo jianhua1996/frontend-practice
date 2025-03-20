@@ -5,7 +5,16 @@
 				v-for="(item, index) in items"
 				:key="item.name"
 			>
-				<router-link :to="item.path">{{ item.name }}</router-link>
+				<n-button
+					type="info"
+					size="medium"
+					round
+					secondary
+					:to="item.path"
+					class="sidebar-item"
+					@click="router.push(item.path)"
+					>{{ item.meta?.title || item.name }}</n-button
+				>
 			</div>
 		</div>
 		<div class="content">
@@ -14,9 +23,11 @@
 	</div>
 </template>
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { ref } from 'vue'
 import { routes } from './router'
+
+const router = useRouter()
 
 const items = ref(routes)
 </script>
@@ -28,6 +39,9 @@ const items = ref(routes)
 	.sidebar {
 		width: 200px;
 		border-right: 1px solid #ccc;
+		div:not(:last-of-type) > .sidebar-item {
+			margin-bottom: 8px;
+		}
 	}
 	.content {
 		flex: 1;

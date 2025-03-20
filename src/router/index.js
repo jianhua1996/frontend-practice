@@ -6,17 +6,26 @@ export const routes = [
 		path: '/',
 		alias: '/home',
 		name: 'Home',
-		component: HomeView
+		component: HomeView,
+		meta: {
+			title: '首页'
+		}
 	},
 	{
 		path: '/file-slice',
 		name: 'FileSlice',
-		component: () => import('../views/FileSlice.vue')
+		component: () => import('../views/FileSlice.vue'),
+		meta: {
+			title: '文件切片'
+		}
 	},
 	{
 		path: '/throttle-and-debounce',
 		name: 'ThrottleAndDebounce',
-		component: () => import('../views/ThrottleAndDebounce.vue')
+		component: () => import('../views/ThrottleAndDebounce.vue'),
+		meta: {
+			title: '节流与防抖'
+		}
 	}
 ]
 const router = createRouter({
