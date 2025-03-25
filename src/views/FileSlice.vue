@@ -12,18 +12,21 @@
 	</div>
 </template>
 <script setup>
-import { cutFile } from '@/utils/file'
+import { cutFile } from '@/utils/file.ts'
 
 const logContent = ref('')
 
 const handleProgress = e => {
-	logContent.value += e.msg + '\n'
+	// console.log(e)
+	if (e.type === 'progress') {
+		logContent.value += `进度： ${((e.current / e.total) * 100).toFixed(2)}%， 当前执行： ${e.current}/${e.total}\n`
+	}
 }
 const handleFileChange = async e => {
 	const file = e.target.files[0]
 	const chunks = await cutFile(file, { onProgress: handleProgress })
 	// console.log(chunks)
-	downloadFile(chunks, { name: file.name, type: file.type })
+	// downloadFile(chunks, { name: file.name, type: file.type })
 }
 
 const downloadFile = (chunks, { name, type }) => {

@@ -1,8 +1,8 @@
-import { createChunk } from './file.js'
+import { createChunk } from './file'
 
-self.onmessage = function (e) {
+self.onmessage = function (e: MessageEvent) {
 	const { file, startTaskIndex, endTaskIndex, chunkSize } = e.data
-    // debugger
+	// debugger
 	const chunks = []
 	// 循环当前线程需要处理的任务，从 startTaskIndex 到 endTaskIndex，每一项创建一个 chunk
 	for (let i = startTaskIndex; i < endTaskIndex; i++) {
